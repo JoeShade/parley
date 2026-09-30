@@ -51,7 +51,7 @@ test('reconcileOnBoot sweeps audio dirs for gone/terminal meetings, keeps retrya
     // A non-numeric dir we didn't create must be left alone.
     mkdirSync(join(audioRoot, 'notes'), { recursive: true });
 
-    const r = await reconcileOnBoot(db, audioRoot, { log: quiet });
+    const r = await reconcileOnBoot(db, audioRoot, { log: quiet, retainAudio: false });
     assert.equal(r.sweptDirs, 2);
     assert.equal(existsSync(join(audioRoot, String(doneId))), false);
     assert.equal(existsSync(join(audioRoot, String(goneId))), false);
@@ -65,4 +65,23 @@ test('reconcileOnBoot is a no-op when the audio root does not exist', async () =
   const r = await reconcileOnBoot(db, '/nonexistent/parley/audio', { log: quiet });
   assert.equal(r.sweptDirs, 0);
   assert.equal(r.orphanMeetings, 0);
+});
+
+test('retention keeps complete and partial recordings across restart, but sweeps deleted audio', async () => {
+  const { dir, cleanup } = tmp();
+  const db = openDb(':memory:');
+  try {
+    for (const complete of [true, false]) {
+      const id = db.createMeeting({ guildId: 'g', channelId: 'c', channelName: 'x', startedAt: 't' });
+      db.setMeetingStatus(id, 'done');
+      db.setTranscriptionComplete(id, complete);
+      mkdirSync(join(dir, String(id)));
+      writeFileSync(join(dir, String(id), 'speaker_0.pcm'), 'recorded audio');
+    }
+    mkdirSync(join(dir, '9999'));
+    await reconcileOnBoot(db, dir, { log: quiet, retainAudio: true });
+    assert.ok(existsSync(join(dir, '1', 'speaker_0.pcm')));
+    assert.ok(existsSync(join(dir, '2', 'speaker_0.pcm')));
+    assert.equal(existsSync(join(dir, '9999')), false);
+  } finally { db.sql.close(); cleanup(); }
 });

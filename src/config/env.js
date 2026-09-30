@@ -32,6 +32,7 @@ export function validateEnv(env = process.env) {
 export const config = {
   dataDir: resolveDataDir(),
   exportDir: process.env.EXPORT_DIR || join(resolveDataDir(), 'exports'),
+  retainAudio: !['0', 'false'].includes((process.env.RETAIN_AUDIO || '1').toLowerCase()),
   autoExport: !['0', 'false'].includes((process.env.AUTO_EXPORT || '').toLowerCase()),
   discordToken: process.env.DISCORD_TOKEN,
   discordClientId: process.env.DISCORD_CLIENT_ID,

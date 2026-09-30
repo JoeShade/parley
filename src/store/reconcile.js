@@ -6,10 +6,11 @@
 //      pipeline. Mark them 'transcription_failed' so the dashboard offers a retry
 //      (the PCM is usually still on disk) instead of stranding them forever.
 //   2. Orphaned audio dirs — data/audio/<id> directories whose meeting is gone
-//      (deleted) or already 'done'/'empty' (audio no longer needed). These
-//      accumulate unbounded otherwise.
+//      (deleted) or confirmed empty. Finished audio is retained by default;
+//      RETAIN_AUDIO=0 also sweeps completed meetings.
 //
 // Pure-ish: fs access is injectable for tests.
+import { config } from '../config/env.js';
 import { readdirSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -17,7 +18,7 @@ import { join } from 'node:path';
 // Statuses whose meeting still needs its audio (a retry may retranscribe from PCM).
 const KEEP_AUDIO_STATUSES = new Set(['recording', 'processing', 'transcription_failed', 'summary_failed']);
 
-export async function reconcileOnBoot(db, audioRoot, { readdir = readdirSync, remove = rm, log = console } = {}) {
+export async function reconcileOnBoot(db, audioRoot, { readdir = readdirSync, remove = rm, log = console, retainAudio = config.retainAudio } = {}) {
   const result = { orphanMeetings: 0, sweptDirs: 0 };
 
   // 1) Orphaned meetings from a crash mid-pipeline.
@@ -36,9 +37,9 @@ export async function reconcileOnBoot(db, audioRoot, { readdir = readdirSync, re
     const id = Number(name);
     if (!Number.isInteger(id)) continue; // ignore non-numeric dirs we didn't create
     const meeting = db.getMeeting(id);
-    // Remove when the meeting is gone (deleted) or in a terminal state that no
-    // longer needs the PCM. Keep dirs for meetings that might still be retried.
-    if (!meeting || !KEEP_AUDIO_STATUSES.has(meeting.status)) {
+    // Retained recordings survive restarts, including partial transcripts.
+    // Explicitly deleted/merged meetings and confirmed empties are still swept.
+    if (!meeting || (meeting.status === 'empty') || (!retainAudio && !KEEP_AUDIO_STATUSES.has(meeting.status))) {
       await remove(join(audioRoot, name), { recursive: true, force: true }).catch(() => {});
       result.sweptDirs += 1;
     }

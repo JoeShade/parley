@@ -11,7 +11,7 @@
 // Returns { ok, action, status, reason }.
 import { join } from 'node:path';
 import { readdirSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
+import { cleanupProcessedAudio } from '../voice/audio-retention.js';
 import { getGuildConfig } from '../store/config.js';
 import { getSummarizer } from '../adapters/summarizer/index.js';
 import { buildTranscript, computeTalkTime } from './summarize.js';
@@ -100,10 +100,8 @@ export async function retryMeeting(db, meetingId, { dataDir, deliver = null } = 
     .sort((a, b) => a.startMs - b.startMs);
   try {
     const { empty, exported, exports, exportError } = await processMeeting(db, meetingId, { tracks, cfg, deliver });
-    // Success (or a confirmed-empty meeting): the PCM has served its purpose, so
-    // drop the audio dir. The bot's own finalize does this too, but a retry runs
-    // outside that path and would otherwise leak the directory forever.
-    await rm(audioDir, { recursive: true, force: true }).catch(() => {});
+    // Apply the same retention policy as live recording completion.
+    await cleanupProcessedAudio(audioDir, { empty: !!empty });
     return { ok: true, action: 'retranscribe', status: db.getMeeting(meetingId)?.status,
       empty: !!empty, exported, exports, exportError };
   } catch (err) {

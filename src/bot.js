@@ -4,7 +4,7 @@
 // user connects their Discord app. Returns the live client + meeting manager.
 import { Client, GatewayIntentBits, ChannelType } from 'discord.js';
 import { joinVoiceChannel, getVoiceConnection, entersState, VoiceConnectionStatus } from '@discordjs/voice';
-import { rm } from 'node:fs/promises';
+import { cleanupProcessedAudio } from './voice/audio-retention.js';
 import { config, validateEnv } from './config/env.js';
 import { getGuildConfig, setGuildConfig } from './store/config.js';
 import { deployCommands, clearGlobalCommands } from './commands/deploy.js';
@@ -58,8 +58,8 @@ export function startBot({ db, audioRoot }) {
           cfg,
           deliver: async (notes, talktime) => postNotes({ client, meeting, cfg, notes, talktime }),
         });
-        // Success: delete the meeting's audio. On failure we keep the PCM for manual retry.
-        await rm(session.audioDir, { recursive: true, force: true }).catch(() => {});
+        // Keep successful/partial recordings by default; discard confirmed empties.
+        await cleanupProcessedAudio(session.audioDir, { empty: !!result?.empty });
         // Nobody spoke — drop the empty meeting record entirely.
         if (result?.empty) db.deleteMeeting(meetingId);
         else if (result?.transcriptOnly) {

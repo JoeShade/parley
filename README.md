@@ -139,7 +139,7 @@ A fully self-hosted alternative to Otter/Fathom/Fireflies, built for Discord. Au
 
 1. The bot joins a voice channel (via `/join` or automatically when 2+ humans are present) and writes each speaker's audio to its own track.
 2. When the meeting ends, the bot leaves immediately and processes in the background (the dashboard shows a **Processing** card): the orchestrator transcribes the tracks concurrently through the local sidecar, merges utterances into one timestamp-ordered, speaker-labeled transcript, and stores it in SQLite.
-3. The transcript goes to your chosen summarizer, and the structured notes are posted to a Discord thread. Audio is deleted after a successful run; if posting to Discord fails (missing perms, deleted channel) the notes are still saved and readable in the dashboard, so nothing is lost. Per-stage timings (transcribe/summarize) are stored with each meeting.
+3. The transcript goes to your chosen summarizer, and the structured notes are posted to a Discord thread. Audio is retained after processing by default; if posting to Discord fails (missing perms, deleted channel) the notes are still saved and readable in the dashboard, so nothing is lost. Per-stage timings (transcribe/summarize) are stored with each meeting.
 
 ## 🐳 Quick start (Docker)
 
@@ -417,6 +417,21 @@ not the transcript files. Existing summaries are not changed merely by selecting
 this setting; retrying, reprocessing, or merging under this mode clears generated
 notes and action items for the processed meeting. STT remains a separate setting;
 choose the local sidecar to keep transcription local.
+
+**Retained audio.** Non-empty recordings are kept by default after successful,
+partial, and failed transcription, including retries and container restarts.
+Raw per-user PCM tracks live at `DATA_DIR/audio/<meeting-id>/` (Docker:
+`/data/audio/<meeting-id>/` inside the persistent `parley-data` volume).
+There is no automatic expiry. Confirmed empty recordings are discarded.
+Explicitly deleting a meeting removes its audio; merging removes the source
+meetings' audio. Existing audio already deleted cannot be recovered.
+
+To copy retained tracks to Windows, run `docker compose cp bot:/data/audio ./audio`.
+These are raw PCM tracks, not directly playable WAV/MP3 files. To transcribe a
+retained meeting again, run
+`docker compose exec bot node scripts/retranscribe-meeting.mjs <meeting-id>`.
+Set `RETAIN_AUDIO=0` and recreate/restart the bot to restore automatic cleanup;
+this also removes completed meetings' retained audio at the next startup.
 
 **Automatic Markdown + JSON archives.** Each non-empty processed meeting now
 writes both formats automatically, using the same content as dashboard exports:
