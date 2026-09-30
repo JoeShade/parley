@@ -19,6 +19,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY stt_sidecar/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+COPY stt_sidecar/test_audio_decode.py ./
+# Exercise real WAV decoding without a model download or GPU at build time.
+RUN python -m pytest -q test_audio_decode.py
+
 COPY stt_sidecar/server.py ./
 
 RUN mkdir -p /models

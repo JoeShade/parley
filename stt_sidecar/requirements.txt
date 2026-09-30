@@ -1,4 +1,7 @@
-faster-whisper>=1.1.0
+# Keep PyAV's metadata_errors argument used by faster-whisper's file decoder.
+# Upgrade this pair only after the real WAV decoding tests pass.
+faster-whisper==1.2.1
+av==16.1.0
 fastapi>=0.115.0
 uvicorn>=0.32.0
 python-multipart>=0.0.12
