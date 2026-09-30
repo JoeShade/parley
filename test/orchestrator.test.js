@@ -1,3 +1,6 @@
+import { config as exportConfig } from '../src/config/env.js';
+// Filesystem export integration is covered separately in meeting-export.test.js.
+exportConfig.autoExport = false;
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { openDb } from '../src/store/db.js';

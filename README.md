@@ -407,6 +407,57 @@ re-transcribe from the saved audio when it didn't. Each meeting can also be
 menu for backups or sharing. (The `scripts/*-meeting.mjs`
 helpers still exist for the terminal.)
 
+**Automatic Markdown + JSON archives.** Each non-empty processed meeting now
+writes both formats automatically, using the same content as dashboard exports:
+
+```text
+exports/meeting-42-2026-09-30.md
+exports/meeting-42-2026-09-30.json
+```
+
+The default folder is `DATA_DIR/exports`: `./exports` for a local install, or
+`/data/exports` in the persistent `parley-data` Docker volume. Meeting IDs keep
+same-day/concurrent recordings separate. Set `EXPORT_DIR` to use another folder,
+or `AUTO_EXPORT=0` to disable automatic writes, then restart the bot. In Docker,
+the configured folder must be in a volume to persist across container replacement.
+To see files directly on the host, uncomment `./exports:/data/exports` under the
+bot's volumes in `docker-compose.yml`. To copy existing files out of the volume:
+
+```bash
+docker compose cp bot:/data/exports ./exports
+```
+
+Markdown contains meeting metadata, available notes, and the full speaker-labelled
+transcript. Capture timestamps are displayed as UTC ISO dates, including
+milliseconds (for example `[2026-09-30T18:04:18.341Z] Alice:`). JSON keeps the
+existing `{ meeting, summary, attendees, utterances }` structure, including each
+utterance's Discord `user_id`, `display_name`, and Unix-millisecond `start_ms` /
+`end_ms`. These are utterance/track timings; individual word timings are not
+stored by Parley's current pipeline.
+
+A summarisation failure still exports the saved transcript, with the failure
+status shown. Partial transcription is marked as incomplete. Empty recordings
+and total transcription failures produce no automatic files. Successful retries
+and CLI reprocessing overwrite the same pair with updated results. Discord
+posting failures do not affect the archive. Files are written via temporary
+files and atomic replacement of each file; the pair is not a single transaction.
+If a write fails (for example a full disk), the error is logged and the saved
+meeting remains usable in SQLite and the dashboard. After fixing the folder or
+disk, regenerate both files without rerunning STT or summarisation:
+
+```bash
+node scripts/export-meeting.mjs 42
+# Docker:
+docker compose exec bot node scripts/export-meeting.mjs 42
+```
+
+These files are independent archival snapshots: deleting/merging a meeting or
+editing action items in the dashboard does not delete/update existing archives.
+Re-export the retained meeting after edits if needed, and manage archive
+retention separately. Existing meetings are not exported retroactively; use the
+same command for any past meeting. Archives contain the full conversation;
+include them in your backup and access policy.
+
 **Develop the UI without the bot.** `npm run web` serves the API + built UI
 against your existing `meetings.db` with no Discord token required, so you can
 work on the dashboard against real data:

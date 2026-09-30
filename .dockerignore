@@ -2,6 +2,7 @@
 .git
 .github
 node_modules
+exports
 web/node_modules
 web/dist
 stt_sidecar/.venv

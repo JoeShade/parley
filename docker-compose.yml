@@ -58,8 +58,10 @@ services:
       WEB_UI_PORT: "3000"
       WEB_UI_HOST: 0.0.0.0
     volumes:
-      # SQLite db + per-meeting audio.
+      # SQLite db + per-meeting audio + automatic Markdown/JSON exports.
       - parley-data:/data
+      # Optional: expose the default export folder directly on the host.
+      # - ./exports:/data/exports
     # Dashboard reachable at http://127.0.0.1:3000 on the HOST only.
     ports:
       - "127.0.0.1:3000:3000"

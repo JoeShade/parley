@@ -53,6 +53,7 @@ logs/
 # v2
 data/
 audio/
+exports/
 *.db
 *.db-shm
 *.db-wal

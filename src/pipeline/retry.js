@@ -19,6 +19,7 @@ import { resolveSummaryLanguage } from '../adapters/summarizer/languages.js';
 import { describeSummarizerError } from '../adapters/summarizer/errors.js';
 import { parsePcmName } from '../voice/audio.js';
 import { processMeeting } from './orchestrator.js';
+import { autoExportMeeting } from '../delivery/meeting-export.js';
 
 // Statuses the UI should offer a retry for.
 export const RETRYABLE_STATUSES = new Set(['transcription_failed', 'summary_failed', 'processing', 'recording']);
@@ -69,6 +70,7 @@ export async function retryMeeting(db, meetingId, { dataDir, deliver = null } = 
       notes = await summarizer.summarize(transcript, meta);
     } catch (err) {
       db.setMeetingStatus(meetingId, 'summary_failed');
+      await autoExportMeeting(db, meetingId);
       return { ok: false, action: 'resummarize', status: 'summary_failed',
         reason: err.userMessage ?? describeSummarizerError(err, cfg.summarizerProvider) };
     }
@@ -76,8 +78,9 @@ export async function retryMeeting(db, meetingId, { dataDir, deliver = null } = 
     db.saveSummary(meetingId, notes, talktime, summarizer.lastUsed ?? `${cfg.summarizerProvider}:${cfg.summarizerModel || ''}`);
     db.seedTodos(meetingId, meeting.guild_id, notes.actionItems || [], meeting.started_at);
     db.setMeetingStatus(meetingId, 'done', new Date().toISOString());
+    const exportResult = await autoExportMeeting(db, meetingId);
     if (deliver) await deliver(notes, talktime, meta).catch(() => {});
-    return { ok: true, action: 'resummarize', status: 'done' };
+    return { ok: true, action: 'resummarize', status: 'done', ...exportResult };
   }
 
   // retranscribe: rebuild tracks from the PCM filenames and run the full pipeline.
@@ -91,12 +94,13 @@ export async function retryMeeting(db, meetingId, { dataDir, deliver = null } = 
     })
     .sort((a, b) => a.startMs - b.startMs);
   try {
-    const { notes, empty } = await processMeeting(db, meetingId, { tracks, cfg, deliver });
+    const { notes, empty, exported, exports, exportError } = await processMeeting(db, meetingId, { tracks, cfg, deliver });
     // Success (or a confirmed-empty meeting): the PCM has served its purpose, so
     // drop the audio dir. The bot's own finalize does this too, but a retry runs
     // outside that path and would otherwise leak the directory forever.
     await rm(audioDir, { recursive: true, force: true }).catch(() => {});
-    return { ok: true, action: 'retranscribe', status: db.getMeeting(meetingId)?.status, empty: !notes || !!empty };
+    return { ok: true, action: 'retranscribe', status: db.getMeeting(meetingId)?.status,
+      empty: !notes || !!empty, exported, exports, exportError };
   } catch (err) {
     // Keep the PCM on failure so a later retry can try again.
     const status = db.getMeeting(meetingId).status;

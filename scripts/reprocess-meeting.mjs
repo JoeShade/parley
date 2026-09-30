@@ -13,6 +13,7 @@ import { getGuildConfig } from '../src/store/config.js';
 import { buildTranscript, computeTalkTime } from '../src/pipeline/summarize.js';
 import { getSummarizer } from '../src/adapters/summarizer/index.js';
 import { describeSummarizerError } from '../src/adapters/summarizer/errors.js';
+import { autoExportMeeting } from '../src/delivery/meeting-export.js';
 
 const meetingId = Number(process.argv[2]);
 if (!Number.isInteger(meetingId)) {
@@ -59,6 +60,7 @@ try {
 const modelUsed = `${cfg.summarizerProvider}:${cfg.summarizerModel || ''}`;
 db.saveSummary(meetingId, notes, talktime, modelUsed);
 db.setMeetingStatus(meetingId, 'done', new Date().toISOString());
+await autoExportMeeting(db, meetingId);
 
 console.log(`Done. Meeting ${meetingId} status -> done. View with /summary.`);
 console.log(`TL;DR: ${notes.tldr}`);

@@ -3,6 +3,7 @@ import { buildTranscript, computeTalkTime } from './summarize.js';
 import { getSummarizer } from '../adapters/summarizer/index.js';
 import { describeSummarizerError } from '../adapters/summarizer/errors.js';
 import { resolveSummaryLanguage } from '../adapters/summarizer/languages.js';
+import { autoExportMeeting } from '../delivery/meeting-export.js';
 
 export async function processMeeting(db, meetingId, opts) {
   const meeting = db.getMeeting(meetingId);
@@ -78,6 +79,8 @@ export async function processMeeting(db, meetingId, opts) {
     notes = await summarizer.summarize(transcript, meta);
   } catch (err) {
     db.setMeetingStatus(meetingId, 'summary_failed');
+    // A failed summary must not stop the transcript archive.
+    await autoExportMeeting(db, meetingId);
     // FallbackSummarizer already composed a message naming both attempts; don't
     // overwrite it with one that only mentions the primary provider.
     err.userMessage ??= describeSummarizerError(err, opts.cfg.summarizerProvider);
@@ -99,6 +102,7 @@ export async function processMeeting(db, meetingId, opts) {
   // for backfilled rows.)
   db.seedTodos(meetingId, meeting.guild_id, notes.actionItems || [], meeting.started_at);
   db.setMeetingStatus(meetingId, 'done', new Date().toISOString());
+  const exportResult = await autoExportMeeting(db, meetingId);
 
   // Delivery is the last step and runs AFTER the summary is safely persisted, so
   // a posting failure (missing perms, deleted channel) must not throw away a
@@ -116,5 +120,5 @@ export async function processMeeting(db, meetingId, opts) {
       console.error(`[pipeline] meeting ${meetingId} summarized but delivery failed: ${deliveryError}`);
     }
   }
-  return { notes, talktime, delivered, deliveryError };
+  return { notes, talktime, delivered, deliveryError, ...exportResult };
 }

@@ -31,6 +31,8 @@ export function validateEnv(env = process.env) {
 
 export const config = {
   dataDir: resolveDataDir(),
+  exportDir: process.env.EXPORT_DIR || join(resolveDataDir(), 'exports'),
+  autoExport: !['0', 'false'].includes((process.env.AUTO_EXPORT || '').toLowerCase()),
   discordToken: process.env.DISCORD_TOKEN,
   discordClientId: process.env.DISCORD_CLIENT_ID,
   sttUrl: process.env.STT_URL || 'http://127.0.0.1:8000',
