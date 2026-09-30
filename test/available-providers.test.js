@@ -13,3 +13,8 @@ test('availableProviders reflects which keys are set', () => {
   assert.equal(byName.openrouter, false);
   assert.equal(byName.ollama, true);
 });
+
+test('transcript-only provider is available without any credentials', () => {
+  const env = { gemini: {}, openai: {}, opencode: {}, openrouter: {}, ollama: {} };
+  assert.equal(availableProviders(env).find(p => p.provider === 'none').ok, true);
+});

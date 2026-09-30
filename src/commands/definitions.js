@@ -28,7 +28,7 @@ export function buildCommands() {
         .addChoices(...SUPPORTED_PROVIDERS.map((p) => ({ name: p, value: p }))))
       .addStringOption((o) => o.setName('model').setDescription('Summarizer model — type to search the provider catalog').setAutocomplete(true))
       .addStringOption((o) => o.setName('fallback_provider').setDescription('Backup summarizer used only if the primary fails')
-        .addChoices(...SUPPORTED_PROVIDERS.map((p) => ({ name: p, value: p })), { name: 'none', value: 'none' }))
+        .addChoices(...SUPPORTED_PROVIDERS.filter((p) => p !== 'none').map((p) => ({ name: p, value: p })), { name: 'none', value: 'none' }))
       .addStringOption((o) => o.setName('fallback_model').setDescription('Backup summarizer model — type to search the provider catalog').setAutocomplete(true))
       .addStringOption((o) => o.setName('stt_provider').setDescription('Speech-to-text provider')
         .addChoices(...STT_PROVIDERS.map((p) => ({ name: p, value: p }))))

@@ -67,7 +67,7 @@ console.log(`Re-transcribing meeting ${meetingId}: ${tracks.length} tracks via s
 try {
   const { notes } = await processMeeting(db, meetingId, { tracks, cfg });
   console.log(`Done. Meeting ${meetingId} status -> done. View with /summary.`);
-  console.log(`TL;DR: ${notes.tldr}`);
+  if (notes) console.log(`TL;DR: ${notes.tldr}`);
 } catch (err) {
   // processMeeting sets the right status (transcription_failed / summary_failed)
   // and attaches a user-facing reason.

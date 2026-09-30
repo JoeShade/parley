@@ -55,6 +55,12 @@ console.log(`Recovering #${meetingId} "${meeting.channel_name}": ${tracks.length
 
 const { notes, talktime } = await processMeeting(db, meetingId, { cfg, tracks });
 
+if (!notes) {
+  console.log(`Meeting ${meetingId}: transcript processing finished. View the dashboard and exports.`);
+  db.sql.close();
+  process.exit(0);
+}
+
 // Print the recovered notes so they're visible immediately (also saved in DB + todos).
 console.log('\n================ RECOVERED NOTES ================');
 console.log('TL;DR:', notes.tldr);

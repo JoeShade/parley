@@ -23,6 +23,7 @@ export function createAdapter(provider, model, env = envConfig) {
 const label = (provider, model) => `${provider}:${model || ''}`;
 
 export function getSummarizer(cfg, env = envConfig) {
+  if (cfg.summarizerProvider === 'none') throw new Error('AI summarisation is disabled for this server.');
   const primary = createAdapter(cfg.summarizerProvider, cfg.summarizerModel, env);
   const fbProvider = cfg.summarizerFallbackProvider;
   const fbModel = cfg.summarizerFallbackModel;
@@ -37,4 +38,4 @@ export function getSummarizer(cfg, env = envConfig) {
   });
 }
 
-export const SUPPORTED_PROVIDERS = ['gemini', 'ollama', 'openai', 'opencode', 'openrouter'];
+export const SUPPORTED_PROVIDERS = ['none', 'gemini', 'ollama', 'openai', 'opencode', 'openrouter'];

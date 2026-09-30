@@ -1,3 +1,4 @@
+import { completeTranscriptMeeting } from '../pipeline/orchestrator.js';
 // src/web/api.js
 import { Router } from 'express';
 import { ChannelType } from 'discord.js';
@@ -208,11 +209,15 @@ export function apiRouter({ db, bot = null, client = null, sidecar = null }) {
       summaryLanguage: resolveSummaryLanguage(cfg),
     };
     try {
-      const summarizer = getSummarizer(cfg);
-      const notes = await summarizer.summarize(transcript, meta);
-      db.clearSummary(targetId);
-      db.saveSummary(targetId, notes, talktime, summarizer.lastUsed ?? `${cfg.summarizerProvider}:${cfg.summarizerModel || ''}`);
-      db.seedTodos(targetId, target.guild_id, notes.actionItems || [], target.started_at);
+      if (cfg.summarizerProvider === 'none') {
+        await completeTranscriptMeeting(db, targetId);
+      } else {
+        const summarizer = getSummarizer(cfg);
+        const notes = await summarizer.summarize(transcript, meta);
+        db.clearSummary(targetId);
+        db.saveSummary(targetId, notes, talktime, summarizer.lastUsed ?? `${cfg.summarizerProvider}:${cfg.summarizerModel || ''}`);
+        db.seedTodos(targetId, target.guild_id, notes.actionItems || [], target.started_at);
+      }
     } catch (e) {
       // Data is already merged; surface the summarize failure but don't unwind.
       return res.status(502).json({ error: e.message, merged });

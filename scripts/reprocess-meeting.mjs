@@ -1,3 +1,4 @@
+import { completeTranscriptMeeting } from '../src/pipeline/orchestrator.js';
 // Re-summarize a meeting from its already-stored utterances.
 // Use when status is summary_failed (e.g. a transient Gemini 503) but the
 // transcript is intact — skips transcription and the STT sidecar entirely.
@@ -42,6 +43,13 @@ if (utterances.length === 0) {
 }
 
 const cfg = getGuildConfig(db, meeting.guild_id);
+if (cfg.summarizerProvider === 'none') {
+  if (!utterances.length) throw new Error('No stored transcript to export.');
+  await completeTranscriptMeeting(db, meetingId);
+  console.log(`Meeting ${meetingId}: transcript exported; AI summarisation disabled.`);
+  db.sql.close();
+  process.exit(0);
+}
 const transcript = buildTranscript(utterances);
 const talktime = computeTalkTime(utterances);
 const attendees = db.listAttendees(meetingId).map((a) => a.display_name);

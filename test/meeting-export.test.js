@@ -203,3 +203,45 @@ test('CLI regenerates both files from persistent SQLite without STT or a summari
   assert.equal(data.utterances[0].text, 'Saved text');
   assert.ok((await readdir(config.exportDir)).some((n) => n.endsWith('.md')));
 });
+
+test('transcript-only mode exports without calling any summarizer or delivering AI notes', async () => {
+  const id = seed();
+  const result = await processMeeting(db, id, options({
+    cfg: { summarizerProvider: 'none', summarizerFallbackProvider: 'gemini' },
+    summarizer: { summarize() { assert.fail('summarizer must not run'); } },
+    deliver() { assert.fail('AI notes must not be delivered'); },
+  }));
+  assert.equal(result.transcriptOnly, true);
+  assert.equal(result.empty, false);
+  const { json, md } = await readPair(id);
+  assert.equal(json.meeting.status, 'done');
+  assert.equal(json.summary, null);
+  assert.deepEqual(json.utterances.map(u => u.user_id), ['111', '222']);
+  assert.ok(md.includes('[2026-09-30T23:59:58.341Z] Alex:** First'));
+  assert.ok(!md.includes('Summarisation failed'));
+});
+
+test('transcript-only retry clears previous notes and refreshes both archives without AI', async () => {
+  const id = seed();
+  await processMeeting(db, id, options());
+  db.sql.prepare("UPDATE guild_config SET summarizer_provider = 'none' WHERE guild_id = 'g'").run();
+  const result = await retryMeeting(db, id, { dataDir: root, deliver() { assert.fail('no AI delivery'); } });
+  assert.equal(result.ok, true);
+  const { json, md } = await readPair(id);
+  assert.equal(json.summary, null);
+  assert.equal(json.meeting.status, 'done');
+  assert.equal(json.utterances.length, 2);
+  assert.ok(md.includes('Second café'));
+});
+
+test('missing summarizer credentials no longer prevent transcription and export', async () => {
+  const id = seed();
+  const old = config.gemini.apiKey;
+  config.gemini.apiKey = '';
+  try {
+    await assert.rejects(processMeeting(db, id, options({ cfg: { summarizerProvider: 'gemini' } })), /GEMINI_API_KEY/);
+    const { json } = await readPair(id);
+    assert.equal(json.meeting.status, 'summary_failed');
+    assert.equal(json.utterances.length, 2);
+  } finally { config.gemini.apiKey = old; }
+});

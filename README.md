@@ -407,6 +407,17 @@ re-transcribe from the saved audio when it didn't. Each meeting can also be
 menu for backups or sharing. (The `scripts/*-meeting.mjs`
 helpers still exist for the terminal.)
 
+**Transcripts without AI summaries.** In Settings → Summarizer choose
+**None — transcripts only** (or `/setup provider:none`). This skips all
+summarizer and fallback calls: no AI API key or Ollama is needed. Completed
+recordings keep speaker identities and UTC timestamps, appear as done in the
+dashboard, and write both automatic exports. JSON has `summary: null`; Markdown
+contains meeting metadata and the transcript. Discord posts a completion notice,
+not the transcript files. Existing summaries are not changed merely by selecting
+this setting; retrying, reprocessing, or merging under this mode clears generated
+notes and action items for the processed meeting. STT remains a separate setting;
+choose the local sidecar to keep transcription local.
+
 **Automatic Markdown + JSON archives.** Each non-empty processed meeting now
 writes both formats automatically, using the same content as dashboard exports:
 

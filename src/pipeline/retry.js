@@ -18,7 +18,7 @@ import { buildTranscript, computeTalkTime } from './summarize.js';
 import { resolveSummaryLanguage } from '../adapters/summarizer/languages.js';
 import { describeSummarizerError } from '../adapters/summarizer/errors.js';
 import { parsePcmName } from '../voice/audio.js';
-import { processMeeting } from './orchestrator.js';
+import { processMeeting, completeTranscriptMeeting } from './orchestrator.js';
 import { autoExportMeeting } from '../delivery/meeting-export.js';
 
 // Statuses the UI should offer a retry for.
@@ -51,6 +51,11 @@ export async function retryMeeting(db, meetingId, { dataDir, deliver = null } = 
 
   const meeting = plan.meeting;
   const cfg = getGuildConfig(db, meeting.guild_id);
+
+  if (plan.action === 'resummarize' && cfg.summarizerProvider === 'none') {
+    const exported = await completeTranscriptMeeting(db, meetingId);
+    return { ok: true, action: 'export', status: 'done', ...exported };
+  }
 
   if (plan.action === 'resummarize') {
     const utterances = db.listUtterances(meetingId).map((u) => ({
@@ -94,13 +99,13 @@ export async function retryMeeting(db, meetingId, { dataDir, deliver = null } = 
     })
     .sort((a, b) => a.startMs - b.startMs);
   try {
-    const { notes, empty, exported, exports, exportError } = await processMeeting(db, meetingId, { tracks, cfg, deliver });
+    const { empty, exported, exports, exportError } = await processMeeting(db, meetingId, { tracks, cfg, deliver });
     // Success (or a confirmed-empty meeting): the PCM has served its purpose, so
     // drop the audio dir. The bot's own finalize does this too, but a retry runs
     // outside that path and would otherwise leak the directory forever.
     await rm(audioDir, { recursive: true, force: true }).catch(() => {});
     return { ok: true, action: 'retranscribe', status: db.getMeeting(meetingId)?.status,
-      empty: !notes || !!empty, exported, exports, exportError };
+      empty: !!empty, exported, exports, exportError };
   } catch (err) {
     // Keep the PCM on failure so a later retry can try again.
     const status = db.getMeeting(meetingId).status;

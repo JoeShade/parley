@@ -11,7 +11,6 @@ import { deployCommands, clearGlobalCommands } from './commands/deploy.js';
 import { MeetingManager } from './voice/meeting-manager.js';
 import { TrackRegistry, attachCapture } from './voice/capture.js';
 import { processMeeting } from './pipeline/orchestrator.js';
-import { getSummarizer } from './adapters/summarizer/index.js';
 import { shouldAutoJoin, shouldAutoLeave } from './voice/decisions.js';
 import { validateSetup } from './commands/setup-logic.js';
 import { handleAutocomplete } from './commands/autocomplete.js';
@@ -57,13 +56,16 @@ export function startBot({ db, audioRoot }) {
         const result = await processMeeting(db, meetingId, {
           tracks,
           cfg,
-          summarizer: getSummarizer(cfg),
           deliver: async (notes, talktime) => postNotes({ client, meeting, cfg, notes, talktime }),
         });
         // Success: delete the meeting's audio. On failure we keep the PCM for manual retry.
         await rm(session.audioDir, { recursive: true, force: true }).catch(() => {});
         // Nobody spoke — drop the empty meeting record entirely.
         if (result?.empty) db.deleteMeeting(meetingId);
+        else if (result?.transcriptOnly) {
+          const ch = await client.channels.fetch(cfg.notesChannelId || meeting.channel_id).catch(() => null);
+          if (ch) await ch.send(`✅ Meeting ${meetingId}: transcript ready in the dashboard. ${result.exported ? 'Markdown and JSON saved locally.' : 'Check the dashboard or logs for export status.'}`).catch(() => {});
+        }
         // Summary succeeded but posting didn't (perms/deleted channel): the notes
         // are safe in the dashboard and the meeting stays 'done'. Best-effort ping
         // the origin channel so people aren't left waiting on a thread that never comes.
@@ -283,7 +285,9 @@ export function startBot({ db, audioRoot }) {
         if (!channelId || !manager.isActive(guild.id, channelId)) return interaction.reply({ content: "❌ I'm not recording here.", ephemeral: true });
         await interaction.deferReply({ ephemeral: true });
         await stopAndLeave(guild.id, channelId);
-        return interaction.editReply('✅ Stopped. Processing — notes will post shortly.');
+        return interaction.editReply(getGuildConfig(db, guild.id).summarizerProvider === 'none'
+          ? '✅ Stopped. Processing — the transcript will appear in the dashboard and local exports.'
+          : '✅ Stopped. Processing — notes will post shortly.');
       }
       if (commandName === 'summary') {
         const id = interaction.options.getInteger('meeting') ?? db.listRecent(guild.id, 1)[0]?.id;

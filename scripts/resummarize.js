@@ -1,3 +1,4 @@
+import { completeTranscriptMeeting } from '../src/pipeline/orchestrator.js';
 // Re-summarize a stored meeting from its saved utterances (no re-transcribe)
 // and overwrite its summary row. Usage: node scripts/resummarize.js <meetingId>
 import { join } from 'node:path';
@@ -24,6 +25,13 @@ const utterances = db.listUtterances(meetingId).map((u) => ({
 }));
 
 const cfg = getGuildConfig(db, meeting.guild_id);
+if (cfg.summarizerProvider === 'none') {
+  if (!utterances.length) throw new Error('No stored transcript to export.');
+  await completeTranscriptMeeting(db, meetingId);
+  console.log(`Meeting ${meetingId}: transcript exported; AI summarisation disabled.`);
+  db.sql.close();
+  process.exit(0);
+}
 const summarizer = getSummarizer(cfg);
 const talktime = computeTalkTime(utterances);
 const notes = await summarizer.summarize(buildTranscript(utterances), {

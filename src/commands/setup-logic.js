@@ -6,6 +6,7 @@ import { STT_PROVIDERS, STT_MODELS, sttProviderReady } from '../adapters/stt/ind
 const WHISPER_MODELS = ['tiny', 'base', 'small', 'medium', 'large-v3', 'large-v3-turbo'];
 
 export function providerKeyPresent(provider, env) {
+  if (provider === 'none') return { ok: true, missing: null };
   if (provider === 'gemini') return { ok: !!env.gemini.apiKey, missing: 'GEMINI_API_KEY' };
   if (provider === 'openai') return { ok: !!env.openai.apiKey, missing: 'OPENAI_API_KEY' };
   if (provider === 'opencode') return { ok: !!env.opencode.apiKey, missing: 'OPENCODE_API_KEY' };

@@ -297,8 +297,8 @@ export default function Setup() {
   useEffect(() => { reload(); }, [guildId]);
 
   // One catalog per model field: the primary provider's and the fallback's.
-  const models = useCatalog(data?.config?.summarizerProvider);
-  const fbModels = useCatalog(data?.config?.summarizerFallbackProvider);
+  const models = useCatalog(data?.config?.summarizerProvider === 'none' ? null : data?.config?.summarizerProvider);
+  const fbModels = useCatalog(data?.config?.summarizerProvider === 'none' ? null : data?.config?.summarizerFallbackProvider);
 
   if (!guildId) return (
     <Page max="720px">
@@ -383,14 +383,14 @@ export default function Setup() {
 
       <div className="space-y-5">
         <ConnectionCard sys={sys} onChanged={refreshSys} />
-        <Card title="Summarizer" desc="Which AI turns transcripts into structured notes.">
+        <Card title="Summarizer" desc="Choose an AI for notes, or None for timestamped transcripts only.">
           <Field label="Provider" hint={sumDraft ? 'Add the API key below to switch to this provider.' : undefined}>
             <div className="relative">
               <select className={sel} value={sumProvider}
                 onChange={(e) => pickSummarizer(e.target.value)}>
                 {providers.map((p) => (
                   <option key={p.provider} value={p.provider}>
-                    {p.provider}{p.ok ? '' : ' (no key set)'}
+                    {p.provider === 'none' ? 'None — transcripts only' : p.provider}{p.ok ? '' : ' (no key set)'}
                   </option>
                 ))}
               </select>
@@ -400,7 +400,7 @@ export default function Setup() {
 
           {sumKeyed && <KeyEditor provider={sumProvider} present={!!secrets[sumProvider]} onChanged={commitSumKey} autoEdit={!!sumDraft} />}
 
-          {!sumDraft && (
+          {!sumDraft && sumProvider !== 'none' && (
           <Field label="Model" hint="Type to search the provider's catalog. Any id it supports also works — press Enter to use what you typed.">
             <ModelPicker value={c.summarizerModel} catalog={models.catalog} loading={models.loading}
               onRefresh={models.reload}
@@ -410,13 +410,13 @@ export default function Setup() {
 
           {/* Only providers with a working key are offered: validateSetup rejects
               a keyless fallback server-side, so listing them would just error. */}
-          {!sumDraft && (
+          {!sumDraft && sumProvider !== 'none' && (
           <Field label="Fallback" hint="Tried only if the primary fails (quota cap, outage, region block). Choose none to disable.">
             <div className="relative">
               <select className={sel} value={c.summarizerFallbackProvider || 'none'}
                 onChange={(e) => save({ fallbackProvider: e.target.value })}>
                 <option value="none">none</option>
-                {providers.filter((p) => p.ok && p.provider !== c.summarizerProvider).map((p) => (
+                {providers.filter((p) => p.ok && p.provider !== 'none' && p.provider !== c.summarizerProvider).map((p) => (
                   <option key={p.provider} value={p.provider}>{p.provider}</option>
                 ))}
               </select>

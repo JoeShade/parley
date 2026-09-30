@@ -8,7 +8,6 @@ import { autoExportMeeting } from '../delivery/meeting-export.js';
 export async function processMeeting(db, meetingId, opts) {
   const meeting = db.getMeeting(meetingId);
   const transcribe = opts.transcribe || ((tracks, cfg) => transcribeTracks(tracks, cfg));
-  const summarizer = opts.summarizer || getSummarizer(opts.cfg);
 
   db.setMeetingStatus(meetingId, 'processing');
 
@@ -63,6 +62,11 @@ export async function processMeeting(db, meetingId, opts) {
     return { notes: null, talktime: [], empty: true };
   }
 
+  if (opts.cfg.summarizerProvider === 'none') {
+    const exported = await completeTranscriptMeeting(db, meetingId);
+    return { notes: null, talktime: computeTalkTime(utterances), empty: false, transcriptOnly: true, ...exported };
+  }
+
   const transcript = buildTranscript(utterances);
   const talktime = computeTalkTime(utterances);
   const attendees = db.listAttendees(meetingId).map((a) => a.display_name);
@@ -73,9 +77,10 @@ export async function processMeeting(db, meetingId, opts) {
     summaryLanguage: resolveSummaryLanguage(opts.cfg),
   };
 
-  let notes;
+  let notes, summarizer;
   const summarizeStart = Date.now();
   try {
+    summarizer = opts.summarizer || getSummarizer(opts.cfg);
     notes = await summarizer.summarize(transcript, meta);
   } catch (err) {
     db.setMeetingStatus(meetingId, 'summary_failed');
@@ -121,4 +126,10 @@ export async function processMeeting(db, meetingId, opts) {
     }
   }
   return { notes, talktime, delivered, deliveryError, ...exportResult };
+}
+
+export async function completeTranscriptMeeting(db, meetingId) {
+  db.clearSummary(meetingId);
+  db.setMeetingStatus(meetingId, 'done', new Date().toISOString());
+  return autoExportMeeting(db, meetingId);
 }
