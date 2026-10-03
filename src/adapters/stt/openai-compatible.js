@@ -32,6 +32,7 @@ export function createOpenAICompatibleSTT({ baseUrl, apiKey, label = 'STT' }, de
         // Whisper auto-detects language when none is supplied; only pin it when
         // the user picked a specific ISO code (our 'auto' sentinel means detect).
         if (opts.language && opts.language !== 'auto') form.append('language', opts.language);
+        if (opts.vocabulary) form.append('prompt', opts.vocabulary);
         const res = await fetchImpl(url, {
           method: 'POST',
           headers: { Authorization: `Bearer ${apiKey}` },

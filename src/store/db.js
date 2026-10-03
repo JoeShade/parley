@@ -1,6 +1,9 @@
 import { DatabaseSync } from 'node:sqlite';
 
 const SCHEMA = `
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY, value TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS meetings (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   guild_id TEXT, channel_id TEXT, channel_name TEXT,

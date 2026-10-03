@@ -8,6 +8,7 @@ import { openDb } from '../src/store/db.js';
 import { setGuildConfig } from '../src/store/config.js';
 import { config } from '../src/config/env.js';
 import { apiRouter } from '../src/web/api.js';
+import { setVocabulary } from '../src/store/vocabulary.js';
 
 async function serve(app) {
   const server = app.listen(0, '127.0.0.1');
@@ -64,6 +65,7 @@ test('retranscription forces STT for a completed transcript, uses current model 
   sttApp.post('/transcribe', async (req, res) => {
     requests++;
     assert.match(req.body.toString(), /large-v3/);
+    assert.match(req.body.toString(), /AWP, connector/);
     assert.match(req.body.toString(), /RIFF/);
     entered(); await gate;
     res.json({ text: 'new accurate transcript', words: [{ word: 'new', start: 0, end: 1 }] });
@@ -71,6 +73,7 @@ test('retranscription forces STT for a completed transcript, uses current model 
   const stt = await serve(sttApp);
   Object.assign(config, { dataDir: root, exportDir: join(root, 'exports'), sttUrl: stt.base, autoExport: true, retainAudio: true });
   const { id, start } = seed(db), audio = join(root, 'audio', String(id));
+  setVocabulary(db, 'AWP\nconnector');
   await mkdir(audio, { recursive: true });
   const pcm = join(audio, `123_${start}.pcm`);
   await writeFile(pcm, Buffer.alloc(32000));

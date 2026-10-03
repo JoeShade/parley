@@ -5,6 +5,7 @@ import { ChannelType } from 'discord.js';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getGuildConfig, setGuildConfig } from '../store/config.js';
+import { getVocabulary, setVocabulary } from '../store/vocabulary.js';
 import { validateSetup, availableProviders } from '../commands/setup-logic.js';
 import { config as env } from '../config/env.js';
 import { askMeeting } from '../adapters/summarizer/ask.js';
@@ -300,6 +301,14 @@ export function apiRouter({ db, bot = null, client = null, sidecar = null, retra
       defaultModels: DEFAULT_MODELS,
       secrets: secretStatus(env),
     });
+  });
+
+  r.get('/vocabulary', (_req, res) => res.json({ vocabulary: getVocabulary(db) }));
+  r.put('/vocabulary', requireAdmin, (req, res) => {
+    try {
+      const vocabulary = setVocabulary(db, req.body?.text);
+      res.json({ ok: true, vocabulary });
+    } catch (err) { res.status(400).json({ error: err.message }); }
   });
 
   r.patch('/guilds/:g/config', async (req, res) => {

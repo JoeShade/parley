@@ -17,7 +17,8 @@ export async function transcribeTracks(tracks, cfg = {}, deps = {}) {
   // meeting. The provider default can be overridden via deps.stt in tests.
   const transcribe = getSTT(cfg, deps.env, deps.sttDeps);
   const model = resolveSttModel(cfg);
-  const stt = deps.stt || ((wav) => transcribe(wav, { model, language: cfg.language }));
+  const vocabulary = (cfg.transcriptionVocabulary || '').split('\n').filter(Boolean).join(', ');
+  const stt = deps.stt || ((wav) => transcribe(wav, { model, language: cfg.language, vocabulary }));
   const cleanup = deps.cleanup || (async (p) => { try { await unlink(p); } catch { /* ignore */ } });
   const concurrency = Math.max(1, deps.concurrency ?? (cfg.sttProvider === 'openai' ? 4 : 2));
 

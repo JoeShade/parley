@@ -21,6 +21,7 @@ export async function transcribeFile(filePath, opts = {}, deps = {}) {
       form.append('file', new Blob([bytes]), basename(filePath));
       form.append('model', opts.model || 'small');
       form.append('language', opts.language || 'auto');
+      if (opts.vocabulary) form.append('vocabulary', opts.vocabulary);
       const res = await fetchImpl(`${baseUrl}/transcribe`, {
         method: 'POST', body: form, signal: AbortSignal.timeout(timeoutMs),
       });

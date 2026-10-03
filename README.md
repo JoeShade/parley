@@ -446,6 +446,26 @@ Desktop and the bot container must be running. The helper is for Windows/Docker;
 on other clients use the dashboard downloads. If the checkout moves, run the
 installer again. To unregister the link, run the same installer with `-Uninstall`.
 
+**Transcription vocabulary.** In Settings, use **Import vocabulary** to upload a
+UTF-8 `.md` or `.txt` file with one term per line, for example:
+
+```text
+ZywOo
+connector
+AWP
+eco
+```
+
+No headings, bullets, or JSON are needed. Every non-empty line is a literal
+term. Blank lines and duplicate terms are removed. The list is global across
+all servers, persists across restarts, and is shown in Settings. Uploading
+replaces it; **Clear** removes it. Import and clear require an administrator.
+It is used for new transcriptions and **Re-transcribe**, without changing
+existing transcripts automatically. Local faster-whisper receives hotwords;
+cloud STT receives a prompt. These are hints, not guaranteed spellings. Keep
+important terms first: faster-whisper uses only the first 223 tokens of long
+hotword lists. File uploads are limited to 64 KB.
+
 While recording the bot prefixes its existing display name with `[REC] `,
 truncating to Discord's nickname limit when necessary; it restores its prior
 server nickname when recording stops.

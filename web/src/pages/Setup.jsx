@@ -6,6 +6,7 @@ import { Page, PageHead } from '../components/Page.jsx';
 import { Icon, Empty } from '../components/ui.jsx';
 import { ModelPicker } from '../components/ModelPicker.jsx';
 import { ConnectionForm, BotStatusBadge } from '../components/Connection.jsx';
+import { useAuth } from '../AuthContext.jsx';
 
 const WHISPER = ['tiny', 'base', 'small', 'medium', 'large-v3', 'large-v3-turbo'];
 const LANGS = [['auto', 'Auto-detect'], ['en', 'English'], ['de', 'German'], ['es', 'Spanish'], ['fr', 'French'],
@@ -68,6 +69,60 @@ function Card({ title, desc, children }) {
       </div>
       <div className="space-y-4">{children}</div>
     </section>
+  );
+}
+
+function VocabularyUpload() {
+  const { user } = useAuth();
+  const [vocabulary, setVocabulary] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const fileInput = useRef(null);
+  function load() {
+    setError('');
+    api.vocabulary().then(r => setVocabulary(r.vocabulary)).catch(e => setError(e.message));
+  }
+  useEffect(load, []);
+
+  async function save(text) {
+    const result = await api.importVocabulary(text);
+    setVocabulary(result.vocabulary);
+    setMessage(text ? 'Vocabulary imported. Applies to all servers and re-transcriptions.' : 'Vocabulary cleared.');
+  }
+  async function upload(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      if (!/\.(md|txt)$/i.test(file.name)) throw new Error('Choose a .md or .txt file, with one term per line.');
+      if (file.size > 65536) throw new Error('Choose a file no larger than 64 KB.');
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer());
+      if (!text.trim()) throw new Error('The file has no vocabulary terms.');
+      await save(text);
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  }
+  async function clear() {
+    setBusy(true); setError(''); setMessage('');
+    try { await save(''); } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  }
+  return (
+    <Card title="Transcription vocabulary" desc="One shared list for all servers. Upload a .md or .txt file with one term per line.">
+      {vocabulary === null ? <p className="text-xs text-muted">{error ? 'Could not load vocabulary.' : 'Loading…'}</p> :
+        vocabulary ? <pre className="text-xs text-ink-2 bg-surface-2 rounded-md p-3 max-h-48 overflow-auto whitespace-pre-wrap">{vocabulary}</pre> :
+          <p className="text-xs text-muted">No vocabulary imported.</p>}
+      {user?.isAdmin && <div className="flex gap-2">
+        <input ref={fileInput} type="file" accept=".md,.txt,text/plain,text/markdown" onChange={upload} className="sr-only" aria-label="Upload vocabulary" />
+        <button className="btn btn-primary" disabled={busy || vocabulary === null} onClick={() => fileInput.current?.click()}>{busy ? 'Saving…' : 'Import vocabulary'}</button>
+        {!!vocabulary && <button className="btn btn-ghost" disabled={busy} onClick={clear}>Clear</button>}
+      </div>}
+      <p className="text-xs text-muted">Uploading replaces the list. Changes apply to new transcriptions and Re-transcribe. Keep important terms first: Whisper only uses the beginning of long lists.</p>
+      {message && <p className="text-xs text-accent" role="status">{message}</p>}
+      {error && <p className="text-xs text-error" role="alert">{error} {vocabulary === null && <button className="underline" onClick={load}>Retry</button>}</p>}
+    </Card>
   );
 }
 
@@ -304,6 +359,7 @@ export default function Setup() {
     <Page max="720px">
       <PageHead title="Settings" subtitle="Discord connection and per-server configuration." />
       <ConnectionCard sys={sys} onChanged={refreshSys} />
+      <div className="mt-5"><VocabularyUpload /></div>
       <div className="mt-5"><Empty icon={Icon.Settings} title="No server selected" body="Pick a server from the top bar to configure summarizer, transcription, and delivery." /></div>
     </Page>
   );
@@ -383,6 +439,7 @@ export default function Setup() {
 
       <div className="space-y-5">
         <ConnectionCard sys={sys} onChanged={refreshSys} />
+        <VocabularyUpload />
         <Card title="Summarizer" desc="Choose an AI for notes, or None for timestamped transcripts only.">
           <Field label="Provider" hint={sumDraft ? 'Add the API key below to switch to this provider.' : undefined}>
             <div className="relative">

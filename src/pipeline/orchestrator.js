@@ -4,6 +4,7 @@ import { getSummarizer } from '../adapters/summarizer/index.js';
 import { describeSummarizerError } from '../adapters/summarizer/errors.js';
 import { resolveSummaryLanguage } from '../adapters/summarizer/languages.js';
 import { autoExportMeeting } from '../delivery/meeting-export.js';
+import { getVocabulary } from '../store/vocabulary.js';
 
 export async function processMeeting(db, meetingId, opts) {
   const meeting = db.getMeeting(meetingId);
@@ -15,7 +16,7 @@ export async function processMeeting(db, meetingId, opts) {
   let failures = [];
   const transcribeStart = Date.now();
   try {
-    const result = await transcribe(opts.tracks, opts.cfg);
+    const result = await transcribe(opts.tracks, { ...opts.cfg, transcriptionVocabulary: getVocabulary(db) });
     // transcribeTracks returns { utterances, failures }, but opts.transcribe
     // is an injectable seam other callers/tests still use to return a bare
     // utterances array — accept both shapes.

@@ -2,6 +2,7 @@ import ctypes, glob, logging, os, sysconfig, tempfile
 
 import numpy as np
 from fastapi import FastAPI, UploadFile, File, Form
+from typing import Annotated
 
 log = logging.getLogger("stt_sidecar")
 
@@ -126,7 +127,8 @@ def health():
 # Plain `def` (audit B1): FastAPI runs sync endpoints in its threadpool, so the
 # event loop — and /health — stay responsive during long transcriptions.
 @app.post("/transcribe")
-def transcribe(file: UploadFile = File(...), model: str = Form("small"), language: str = Form("auto")):
+def transcribe(file: UploadFile = File(...), model: str = Form("small"), language: str = Form("auto"),
+               vocabulary: Annotated[str, Form(max_length=131072)] = ""):
     m = get_model(model)
     suffix = os.path.splitext(file.filename or "a.wav")[1] or ".wav"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
@@ -134,14 +136,15 @@ def transcribe(file: UploadFile = File(...), model: str = Form("small"), languag
         path = tmp.name
     try:
         lang = None if language == "auto" else language
+        hints = {"hotwords": vocabulary.strip()} if vocabulary.strip() else {}
         # Prefer the batched pipeline (parallel VAD segments, 1.7-2.6x faster);
         # fall back to the plain model when batching is off/unavailable.
         batched = get_batched()
         if batched is not None:
             segments, info = batched.transcribe(
-                path, language=lang, word_timestamps=True, batch_size=_resolve_batch_size())
+                path, language=lang, word_timestamps=True, batch_size=_resolve_batch_size(), **hints)
         else:
-            segments, info = m.transcribe(path, language=lang, word_timestamps=True)
+            segments, info = m.transcribe(path, language=lang, word_timestamps=True, **hints)
         words, texts = [], []
         for seg in segments:
             texts.append(seg.text)

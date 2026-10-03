@@ -16,7 +16,8 @@ export function createWebServer({ db, bot = null, client = null, sidecar = null 
   // direct client spoof X-Forwarded-For and dodge the per-IP login rate limit.
   // Override with TRUSTED_PROXY when a non-loopback proxy fronts the app.
   app.set('trust proxy', process.env.TRUSTED_PROXY || 'loopback');
-  app.use(express.json());
+  // A 64 KB vocabulary file can grow when encoded as a JSON string.
+  app.use(express.json({ limit: '256kb' }));
 
   // Auth: seed users (default admin on first run) and resolve the session
   // cookie for every request. Login/logout/me/password are public (or self-only)

@@ -144,3 +144,25 @@ def test_fake_model_falls_back_to_sequential(monkeypatch):
     _state.update(model=FakeModel(), model_name="small", device="cpu", compute="int8")
     import server
     assert server.get_batched() is None
+
+
+def test_vocabulary_reaches_sequential_and_batched_transcription(monkeypatch):
+    import server
+    for batched in (False, True):
+        calls = []
+        class CapturingModel(FakeModel):
+            def transcribe(self, path, **kwargs):
+                calls.append(kwargs)
+                return super().transcribe(path, **kwargs)
+        model = CapturingModel()
+        monkeypatch.setattr(server, "get_model", lambda name: model)
+        monkeypatch.setattr(server, "get_batched", lambda: model if batched else None)
+        r = TestClient(app).post("/transcribe",
+                                files={"file": ("a.wav", make_silent_wav(), "audio/wav")},
+                                data={"vocabulary": "AWP, connector"})
+        assert r.status_code == 200
+        assert calls[0]["hotwords"] == "AWP, connector"
+        calls.clear()
+        r = TestClient(app).post("/transcribe", files={"file": ("a.wav", make_silent_wav(), "audio/wav")})
+        assert r.status_code == 200
+        assert "hotwords" not in calls[0]

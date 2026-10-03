@@ -5,6 +5,6 @@ import { transcribeFile } from '../stt-client.js';
 // `(filePath, { model, language }) => { text, words }`.
 export function createSidecarSTT({ baseUrl }, deps = {}) {
   return function transcribe(filePath, opts = {}) {
-    return transcribeFile(filePath, { model: opts.model, language: opts.language }, { ...deps, baseUrl });
+    return transcribeFile(filePath, { model: opts.model, language: opts.language, vocabulary: opts.vocabulary }, { ...deps, baseUrl });
   };
 }
