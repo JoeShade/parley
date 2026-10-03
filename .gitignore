@@ -60,3 +60,6 @@ exports/
 __pycache__/
 .venv/
 
+
+# Windows meeting-file browser copies
+saved-files/

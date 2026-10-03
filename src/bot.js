@@ -1,3 +1,4 @@
+import { createRecordingNickname } from './voice/recording-nickname.js';
 // src/bot.js
 // All Discord bot wiring. Exported as startBot() so it can be launched lazily —
 // the web UI boots first (even with no credentials) and starts the bot once the
@@ -86,8 +87,9 @@ export function startBot({ db, audioRoot }) {
   function humanCount(channel) {
     return channel.members.filter((m) => !m.user.bot).size;
   }
+  const updateRecordingNickname = createRecordingNickname();
   function setRecIndicator(guild, on) {
-    guild.members.me?.setNickname(on ? '[REC] Meeting Bot' : null).catch((e) => {
+    updateRecordingNickname(guild.members.me, on).catch((e) => {
       console.warn('Nickname change failed:', e.message);
     });
   }

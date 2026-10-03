@@ -418,6 +418,37 @@ this setting; retrying, reprocessing, or merging under this mode clears generate
 notes and action items for the processed meeting. STT remains a separate setting;
 choose the local sidecar to keep transcription local.
 
+**Meeting controls.** Each meeting page has **Re-transcribe**, which runs speech
+recognition again from retained audio using the server's current transcription
+model/language. It replaces the stored transcript and refreshes Markdown/JSON
+exports. An admin account is required. A confirmation names the model; processing
+runs in the background and the page updates automatically. No retained audio
+means the button is disabled. A meeting cannot be re-transcribed, deleted, or
+merged while it is recording or processing.
+
+**Open files in Windows Explorer.** From the Windows Parley checkout, install the
+per-user helper once (no administrator required):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/install-windows-files.ps1
+```
+
+Then click **Open files** on a meeting and allow the browser's external-app
+prompt. The helper uses the running local Docker Compose bot to refresh and copy
+that meeting's Markdown/JSON exports and retained PCM into
+`saved-files/meeting-<id>/`, then opens File Explorer. Audio is in its `audio/`
+subfolder. No extra Docker mount is needed. These are independent browsing
+copies: edits or deletions there do not change canonical data in the Docker
+volume, and copies remain if a meeting is later deleted. The helper can only
+accept positive numeric meeting IDs, never commands or arbitrary paths. Docker
+Desktop and the bot container must be running. The helper is for Windows/Docker;
+on other clients use the dashboard downloads. If the checkout moves, run the
+installer again. To unregister the link, run the same installer with `-Uninstall`.
+
+While recording the bot prefixes its existing display name with `[REC] `,
+truncating to Discord's nickname limit when necessary; it restores its prior
+server nickname when recording stops.
+
 **Retained audio.** Non-empty recordings are kept by default after successful,
 partial, and failed transcription, including retries and container restarts.
 Raw per-user PCM tracks live at `DATA_DIR/audio/<meeting-id>/` (Docker:

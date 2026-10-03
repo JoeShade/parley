@@ -25,13 +25,18 @@ import { autoExportMeeting } from '../delivery/meeting-export.js';
 export const RETRYABLE_STATUSES = new Set(['transcription_failed', 'summary_failed', 'processing', 'recording']);
 
 /** Decide what a retry would do, without doing it (for enabling UI + messaging). */
-export function retryPlan(db, meetingId, { dataDir, exists = readdirSync } = {}) {
+export function retryPlan(db, meetingId, { dataDir, exists = readdirSync, forceTranscribe = false } = {}) {
   const meeting = db.getMeeting(meetingId);
   if (!meeting) return { ok: false, action: 'none', reason: 'Meeting not found.' };
   const hasUtterances = db.listUtterances(meetingId).length > 0;
   let pcmCount = 0;
   try { pcmCount = exists(join(dataDir, 'audio', String(meetingId))).filter((f) => f.endsWith('.pcm')).length; }
   catch { pcmCount = 0; }
+  if (forceTranscribe) {
+    return pcmCount > 0
+      ? { ok: true, action: 'retranscribe', meeting }
+      : { ok: false, action: 'none', meeting, reason: 'No retained audio is available for this meeting.' };
+  }
   if (pcmCount > 0 && meeting.transcription_complete !== 1) {
     return { ok: true, action: 'retranscribe', meeting };
   }
@@ -45,8 +50,8 @@ export function retryPlan(db, meetingId, { dataDir, exists = readdirSync } = {})
  * Execute the retry. `deps.deliver` (optional) posts to Discord when a live
  * client is available; omit it for the dashboard (notes just show in the UI).
  */
-export async function retryMeeting(db, meetingId, { dataDir, deliver = null } = {}) {
-  const plan = retryPlan(db, meetingId, { dataDir });
+export async function retryMeeting(db, meetingId, { dataDir, deliver = null, forceTranscribe = false } = {}) {
+  const plan = retryPlan(db, meetingId, { dataDir, forceTranscribe });
   if (!plan.ok) return { ok: false, action: plan.action, status: db.getMeeting(meetingId)?.status, reason: plan.reason };
 
   const meeting = plan.meeting;

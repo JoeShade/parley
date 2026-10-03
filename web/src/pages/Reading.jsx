@@ -1,3 +1,4 @@
+import { useAuth } from '../AuthContext.jsx';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
@@ -285,13 +286,55 @@ function MeetingNav({ meetings, id }) {
   );
 }
 
+function RecordingActions({ meeting, files, retranscription, onReload }) {
+  const { user, authEnabled } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const [showFilesHelp, setShowFilesHelp] = useState(false);
+  const admin = !authEnabled || !!user?.isAdmin;
+  const processing = retranscription?.busy;
+  async function rerun() {
+    if (!window.confirm(`Re-transcribe this meeting using ${retranscription?.model || 'the current model'}? This replaces its transcript and refreshes the Markdown and JSON exports.`)) return;
+    setBusy(true); setErr(null);
+    try { await api.retranscribeMeeting(meeting.id); onReload(); }
+    catch (e) { setErr(e.message || 'Could not start transcription.'); }
+    finally { setBusy(false); }
+  }
+  return (
+    <div className="mt-5 space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <a className="btn btn-ghost" href={files?.openUrl || `parley-files://meeting/${meeting.id}`}
+          onClick={() => setShowFilesHelp(true)}>Open files</a>
+        <button className="btn btn-primary" onClick={rerun}
+          disabled={!admin || !retranscription?.eligible || busy}
+          title={!admin ? 'An admin account is required.' : (retranscription?.reason || '')}>
+          <Icon.Refresh width={15} height={15} />{busy || processing ? 'Transcribing…' : 'Re-transcribe'}
+        </button>
+      </div>
+      {!processing && retranscription?.reason && <p className="text-xs text-muted">{retranscription.reason}</p>}
+      {err && <p role="alert" className="text-sm text-error">{err}</p>}
+      {showFilesHelp && (
+        <div className="card p-3 text-sm text-muted">
+          <p>Allow your browser to open Parley meeting files. The helper opens a folder with Markdown, JSON, and copies of retained audio.</p>
+          <details className="mt-2"><summary className="cursor-pointer text-ink">First time on Windows?</summary>
+            <p className="mt-2">Run this once in PowerShell from your Parley folder:</p>
+            <code className="block mt-1 break-all">powershell -ExecutionPolicy Bypass -File scripts/install-windows-files.ps1</code>
+            <p className="mt-2">Docker Desktop must be running. Then click Open files again.</p>
+          </details>
+          <button className="mt-2 text-xs text-ink" onClick={() => setShowFilesHelp(false)}>Dismiss</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── note document ────────────────────────────────────────────────────── */
 function Note({ data, todos, guildId, meetings, refetchTodos, onReload }) {
-  const { meeting, summary, attendees, utterances, retry } = data;
+  const { meeting, summary, attendees, utterances, retry, files, retranscription } = data;
   const notes = summary?.notes;
   const duration = fmtDuration(meeting.started_at, meeting.ended_at);
   const meetingTodos = todos.filter((t) => String(t.meeting_id) === String(meeting.id));
-  const isFailed = ['transcription_failed', 'summary_failed', 'processing'].includes(meeting.status);
+  const isFailed = ['transcription_failed', 'summary_failed'].includes(meeting.status);
 
   return (
     <article className="max-w-[760px] mx-auto pb-12 animate-fade-up">
@@ -319,11 +362,13 @@ function Note({ data, todos, guildId, meetings, refetchTodos, onReload }) {
             <AvatarStack names={attendees.map((a) => a.display_name)} size={28} max={8} />
           </div>
         )}
+        <RecordingActions meeting={meeting} files={files} retranscription={retranscription} onReload={onReload} />
       </header>
 
+      {meeting.status === 'processing' && <p role="status" className="card p-4 mt-6 text-sm text-muted">Transcription is processing. This page will update when it finishes; you can leave it open or return later.</p>}
       {isFailed && <RetryBanner meeting={meeting} retry={retry} onDone={onReload} />}
 
-      {!notes && !isFailed && <p className="text-sm text-muted mt-8">No summary available — status: {meeting.status}.</p>}
+      {!notes && !isFailed && meeting.status === 'done' && <p className="text-sm text-muted mt-8">Transcript ready. No AI summary was generated.</p>}
 
       {notes && (
         <>
@@ -478,6 +523,12 @@ export default function Reading() {
       .finally(() => { if (!stale) setLoading(false); });
     return () => { stale = true; };
   }, [id, guildId]);
+
+  useEffect(() => {
+    if (data?.meeting?.status !== 'processing') return;
+    const timer = setInterval(reloadMeeting, 2000);
+    return () => clearInterval(timer);
+  }, [id, guildId, data?.meeting?.status]);
 
   if (loading || (!data && !error)) return <NoteSkeleton />;
   if (error) return <div className="px-8 py-10"><Empty icon={Icon.Doc} title="Couldn't load meeting" body={error} /></div>;

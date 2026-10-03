@@ -37,8 +37,10 @@ function anyGuildUsesSidecar(db) {
   } catch { return true; }
 }
 
-export function apiRouter({ db, bot = null, client = null, sidecar = null }) {
+export function apiRouter({ db, bot = null, client = null, sidecar = null, retranscribe = retryMeeting }) {
   const r = Router();
+  const retranscribing = new Set();
+  const busy = (meeting) => retranscribing.has(meeting.id) || ['recording', 'processing'].includes(meeting.status);
   // The live Discord client may not exist yet (bot starts lazily once creds are
   // set). Always resolve it fresh from the controller so routes pick it up the
   // moment the bot connects, without rebuilding the router. `client` is still
@@ -120,11 +122,17 @@ export function apiRouter({ db, bot = null, client = null, sidecar = null }) {
     const meeting = db.getMeeting(id);
     if (!meeting) return res.status(404).json({ error: 'meeting not found' });
     const plan = retryPlan(db, id, { dataDir: env.dataDir });
+    const rerun = retryPlan(db, id, { dataDir: env.dataDir, forceTranscribe: true });
+    const cfg = getGuildConfig(db, meeting.guild_id);
     res.json({
       meeting,
       summary: db.getSummary(id),
       attendees: db.listAttendees(id),
       utterances: db.listUtterances(id),
+      files: { openUrl: `parley-files://meeting/${id}` },
+      retranscription: { eligible: rerun.ok && !busy(meeting), busy: busy(meeting),
+        reason: busy(meeting) ? 'This meeting is recording or processing.' : (rerun.reason || null),
+        model: cfg.sttProvider === 'sidecar' ? cfg.whisperModel : cfg.sttModel },
       retry: { eligible: RETRYABLE_STATUSES.has(meeting.status) && plan.ok, action: plan.action, reason: plan.reason || null },
     });
   });
@@ -145,6 +153,32 @@ export function apiRouter({ db, bot = null, client = null, sidecar = null }) {
     res.json(data);
   });
 
+  // Long GPU jobs run in the background; the page polls meeting status.
+  r.post('/meetings/:id/retranscribe', requireAdmin, (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Invalid meeting ID.' });
+    const meeting = db.getMeeting(id);
+    if (!meeting) return res.status(404).json({ error: 'meeting not found' });
+    if (busy(meeting)) return res.status(409).json({ error: 'This meeting is already recording or processing.' });
+    const plan = retryPlan(db, id, { dataDir: env.dataDir, forceTranscribe: true });
+    if (!plan.ok) return res.status(409).json({ error: plan.reason });
+    retranscribing.add(id);
+    db.setMeetingStatus(id, 'processing');
+    Promise.resolve().then(() => retranscribe(db, id, { dataDir: env.dataDir, forceTranscribe: true }))
+      .then((result) => {
+        if (!result.ok) {
+          if (db.getMeeting(id)?.status === 'processing') db.setMeetingStatus(id, 'transcription_failed');
+          console.error(`[retranscribe] meeting ${id}: ${result.reason}`);
+        }
+      })
+      .catch((err) => {
+        if (db.getMeeting(id)) db.setMeetingStatus(id, 'transcription_failed');
+        console.error(`[retranscribe] meeting ${id}: ${err.message}`);
+      })
+      .finally(() => retranscribing.delete(id));
+    res.status(202).json({ ok: true, status: 'processing' });
+  });
+
   // Retry a failed/stuck meeting: re-summarize if the transcript survived, else
   // re-transcribe from the saved PCM. Posts to Discord too when a live client
   // is attached. Returns the new status so the UI can refresh.
@@ -152,6 +186,7 @@ export function apiRouter({ db, bot = null, client = null, sidecar = null }) {
     const id = Number(req.params.id);
     const meeting = db.getMeeting(id);
     if (!meeting) return res.status(404).json({ error: 'meeting not found' });
+    if (retranscribing.has(id)) return res.status(409).json({ error: 'This meeting is being re-transcribed.' });
     const c = liveClient();
     const deliver = c
       ? async (notes, talktime) => {
@@ -173,6 +208,7 @@ export function apiRouter({ db, bot = null, client = null, sidecar = null }) {
     const id = Number(req.params.id);
     const meeting = db.getMeeting(id);
     if (!meeting) return res.status(404).json({ error: 'meeting not found' });
+    if (busy(meeting)) return res.status(409).json({ error: 'Wait until recording or processing finishes before deleting.' });
     db.deleteMeeting(id);
     await rm(audioDir(id), { recursive: true, force: true }).catch(() => {});
     res.json({ ok: true });
@@ -193,6 +229,9 @@ export function apiRouter({ db, bot = null, client = null, sidecar = null }) {
       if (m.guild_id !== target.guild_id) return res.status(400).json({ error: 'meetings belong to different guilds' });
     }
 
+    if ([target, ...sourceIds.map(id => db.getMeeting(id))].some(busy)) {
+      return res.status(409).json({ error: 'Wait until recording or processing finishes before merging.' });
+    }
     const merged = db.mergeMeetings(targetId, sourceIds);
 
     // Re-summarize the now-combined transcript and replace the target's notes.
