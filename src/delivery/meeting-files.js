@@ -10,7 +10,7 @@ export async function prepareMeetingFiles(db, id, { dataDir = config.dataDir, ex
   const meeting = db.getMeeting(id);
   if (!meeting) throw new Error('Meeting not found.');
   if (['recording', 'processing'].includes(meeting.status)) throw new Error('Wait until recording or processing finishes.');
-  const exports = await writeMeetingExports(db, id, { directory: exportDir });
+  const exports = await writeMeetingExports(db, id, { directory: exportDir, dataDir });
   const audio = join(dataDir, 'audio', String(id));
   let audioAvailable = false;
   try {

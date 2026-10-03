@@ -435,8 +435,9 @@ powershell -ExecutionPolicy Bypass -File scripts/install-windows-files.ps1
 
 Then click **Open files** on a meeting and allow the browser's external-app
 prompt. The helper uses the running local Docker Compose bot to refresh and copy
-that meeting's Markdown/JSON exports and retained PCM into
-`saved-files/meeting-<id>/`, then opens File Explorer. Audio is in its `audio/`
+that meeting's Markdown/JSON exports, playable WAV, and retained PCM into
+`saved-files/meeting-<id>/`, then opens File Explorer. Open the `.wav` alongside
+the transcripts to listen to the match. Raw PCM is in the `audio/`
 subfolder. No extra Docker mount is needed. These are independent browsing
 copies: edits or deletions there do not change canonical data in the Docker
 volume, and copies remain if a meeting is later deleted. The helper can only
@@ -458,7 +459,17 @@ Explicitly deleting a meeting removes its audio; merging removes the source
 meetings' audio. Existing audio already deleted cannot be recovered.
 
 To copy retained tracks to Windows, run `docker compose cp bot:/data/audio ./audio`.
-These are raw PCM tracks, not directly playable WAV/MP3 files. To transcribe a
+These are raw PCM tracks. Automatic exports and **Open files** also create
+`meeting-<id>-<date>.wav`: mono, 16 kHz, 16-bit PCM, playable in standard audio
+players without additional codecs. It starts at the first captured speech and
+preserves gaps and overlapping speakers by their capture timestamps, ending at
+the last captured sample. Overlapping samples are summed and limited to the
+16-bit range. WAV conversion does not improve the original capture quality.
+The exporter streams in bounded blocks rather than loading a whole match into
+memory; standard WAV's size limit is approximately 4 GB (37 hours here).
+Existing meetings with retained audio get a WAV when you click **Open files**,
+without re-transcription. Re-run the Windows helper installer after updating to
+enable copying WAV files. MP3 is not generated. To transcribe a
 retained meeting again, run
 `docker compose exec bot node scripts/retranscribe-meeting.mjs <meeting-id>`.
 Set `RETAIN_AUDIO=0` and recreate/restart the bot to restore automatic cleanup;

@@ -22,7 +22,9 @@ try {
     if ([string]$files.meetingId -ne $meetingId) { throw 'Meeting file manifest did not match the requested ID.' }
     $destination = Join-Path (Join-Path $projectRoot 'saved-files') ('meeting-' + $meetingId)
     New-Item -ItemType Directory -Force -Path $destination | Out-Null
-    foreach ($source in @($files.exports.markdown, $files.exports.json)) {
+    $exportPaths = @($files.exports.markdown, $files.exports.json)
+    if ($files.exports.wav) { $exportPaths += $files.exports.wav }
+    foreach ($source in $exportPaths) {
         if (-not $source -or -not $source.StartsWith('/')) { throw 'Invalid export path.' }
         & docker compose cp ('bot:' + $source) $destination
         if ($LASTEXITCODE -ne 0) { throw 'Could not copy the exported transcript.' }

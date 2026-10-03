@@ -14,6 +14,7 @@ const db = openDb(join(config.dataDir, 'meetings.db'));
 try {
   const files = await writeMeetingExports(db, meetingId);
   console.log(`Markdown: ${files.markdown}\nJSON: ${files.json}`);
+  if (files.wav) console.log(`Audio: ${files.wav}`);
 } catch (err) {
   console.error(`Export failed: ${err.message}`);
   process.exitCode = 1;

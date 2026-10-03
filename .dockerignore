@@ -3,6 +3,7 @@
 .github
 node_modules
 exports
+saved-files
 web/node_modules
 web/dist
 stt_sidecar/.venv

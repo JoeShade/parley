@@ -93,6 +93,7 @@ test('retranscription forces STT for a completed transcript, uses current model 
     assert.equal((await readFile(pcm)).length, 32000);
     const prefix = join(config.exportDir, `meeting-${id}-2026-10-03`);
     assert.match(await readFile(prefix + '.md', 'utf8'), /new accurate transcript/);
+    assert.equal((await readFile(prefix + '.wav')).length, 32044);
     assert.equal(JSON.parse(await readFile(prefix + '.json', 'utf8')).utterances[0].text, 'new accurate transcript');
   } finally { release(); api.close(); stt.close(); Object.assign(config, old); db.sql.close(); await rm(root, { recursive: true, force: true }); }
 });

@@ -17,6 +17,9 @@ test('file manifest refreshes both exports and locates retained PCM without chan
     await writeFile(join(audio, '123_0.pcm'), 'original audio');
     const files = await prepareMeetingFiles(db, id, { dataDir: root, exportDir: join(root, 'exports') });
     assert.equal(files.audio, audio);
+    const wav = await readFile(files.exports.wav);
+    assert.equal(wav.toString('ascii', 0, 4), 'RIFF');
+    assert.equal(wav.subarray(44).toString(), 'original audio');
     assert.match(await readFile(files.exports.markdown, 'utf8'), /Alice:\*\* Hello/);
     assert.equal(JSON.parse(await readFile(files.exports.json, 'utf8')).utterances[0].user_id, '123');
     assert.equal(await readFile(join(audio, '123_0.pcm'), 'utf8'), 'original audio');

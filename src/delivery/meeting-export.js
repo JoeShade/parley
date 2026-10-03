@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { config } from '../config/env.js';
 import { renderNotes } from './discord-notes.js';
+import { writeMeetingWav } from './meeting-audio.js';
 
 // One snapshot/renderer for both dashboard downloads and automatic archives.
 // Preserve the existing JSON schema, including Discord IDs and raw timestamps.
@@ -49,7 +50,7 @@ export function renderMeetingMarkdown({ meeting, summary, attendees, utterances 
   return lines.join('\n') + '\n';
 }
 
-export async function writeMeetingExports(db, meetingId, { directory = config.exportDir } = {}) {
+export async function writeMeetingExports(db, meetingId, { directory = config.exportDir, dataDir = config.dataDir } = {}) {
   const data = readMeetingExport(db, meetingId);
   const basename = meetingExportBasename(data.meeting);
   const files = {
@@ -70,6 +71,8 @@ export async function writeMeetingExports(db, meetingId, { directory = config.ex
   } finally {
     await Promise.all(temporary.map((path) => rm(path, { force: true }).catch(() => {})));
   }
+  const wav = await writeMeetingWav(join(dataDir, 'audio', String(meetingId)), join(directory, `${basename}.wav`));
+  if (wav) files.wav = wav;
   return files;
 }
 
@@ -80,7 +83,7 @@ export async function autoExportMeeting(db, meetingId, {
   if (!enabled) return { exported: false, exportError: null };
   try {
     const exports = await writeMeetingExports(db, meetingId, { directory });
-    log.log(`[export] meeting ${meetingId}: saved Markdown and JSON to ${directory}`);
+    log.log(`[export] meeting ${meetingId}: saved Markdown, JSON${exports.wav ? ' and WAV' : ''} to ${directory}`);
     return { exported: true, exports, exportError: null };
   } catch (err) {
     const exportError = err.message || String(err);
